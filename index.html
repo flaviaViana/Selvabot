@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SelvaBot</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <section id="home" class="screen active opening-screen">
+      <img src="logo.png" alt="Logo SelvaBot" class="logo logo-large" />
+
+      <form id="homeForm" class="input-bar">
+        <input id="homeInput" type="text" placeholder="Digite aqui" autocomplete="off" />
+        <button type="button" id="homeRecordBtn" class="mic-btn" aria-label="Gravar áudio">🎙️</button>
+        <button type="submit" class="send-btn" aria-label="Enviar mensagem">➤</button>
+      </form>
+    </section>
+ 
+    <section id="chat" class="screen chat-screen">
+      <header class="chat-header">
+        <img src="logo.png" alt="Logo SelvaBot" class="logo logo-small" />
+      </header>
+      
+      <div id="messages" class="messages"></div>
+
+      <form id="chatForm" class="input-bar chat-input">
+        <input id="chatInput" type="text" placeholder="Digite aqui" autocomplete="off" />
+        <button type="button" id="recordBtn" class="mic-btn" aria-label="Gravar áudio">🎙️</button>
+        <button type="submit" class="send-btn" aria-label="Enviar mensagem">➤</button>
+      </form>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

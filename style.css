@@ -1,0 +1,396 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  font-family: Arial, Helvetica, sans-serif;
+  background: #fff;
+}
+
+body {
+  overflow: hidden;
+}
+
+.app {
+  width: 100%;
+  height: 100vh;
+}
+
+/* ===========================
+   TELAS
+=========================== */
+
+.screen {
+  display: none;
+  width: 100%;
+  height: 100vh;
+}
+
+.screen.active {
+  display: flex;
+}
+
+.opening-screen {
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 35px;
+  padding: 30px;
+}
+
+.chat-screen {
+    flex-direction: column;
+    height: 100vh;
+}
+
+/* ===========================
+   LOGOS
+=========================== */
+
+.logo-large {
+  width: min(500px, 300px);
+}
+
+.logo-small {
+  width: 250px;
+}
+
+/* ===========================
+   HEADER
+=========================== */
+
+.chat-header {
+  width: 100%;
+  padding: 20px;
+  flex-shrink: 0;
+}
+
+/* ===========================
+   ÁREA DAS MENSAGENS
+=========================== */
+
+.messages {
+  flex: 1;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 18px;
+
+  overflow-y: auto;
+
+  padding: 15px 20px 120px;
+}
+
+/* Scroll bonito */
+
+.messages::-webkit-scrollbar {
+  width: 8px;
+}
+
+.messages::-webkit-scrollbar-thumb {
+  background: #2f6b1f;
+  border-radius: 20px;
+}
+
+/* ===========================
+   BALÕES
+=========================== */
+
+.bot-message,
+.user-message {
+
+  width: fit-content;
+
+  max-width: 75%;
+
+  padding: 16px 22px;
+
+  border-radius: 25px;
+
+  font-size: 20px;
+
+  line-height: 1.5;
+
+  white-space: pre-wrap;
+
+  overflow-wrap: break-word;
+
+  word-break: break-word;
+
+  animation: aparecer .25s ease;
+}
+
+.bot-message {
+
+  align-self: flex-start;
+
+  background: #2f6b1f;
+
+  color: white;
+
+  border-bottom-left-radius: 8px;
+}
+
+.user-message {
+
+  align-self: flex-end;
+
+  background: #4f8b33;
+
+  color: white;
+
+  border-bottom-right-radius: 8px;
+}
+
+.typing {
+
+  opacity: .7;
+
+  font-style: italic;
+}
+
+/* ===========================
+   ÁUDIO
+=========================== */
+
+.audio-message {
+
+  align-self: flex-end;
+
+  width: fit-content;
+
+  max-width: 70%;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 16px;
+
+  padding: 15px 20px;
+
+  border-radius: 30px;
+
+  background: #4f8b33;
+
+  color: white;
+
+  animation: aparecer .25s ease;
+}
+
+.play-btn {
+
+  border: none;
+
+  background: transparent;
+
+  color: white;
+
+  cursor: pointer;
+
+  font-size: 24px;
+}
+
+.wave {
+
+  flex: 1;
+
+  font-size: 22px;
+
+  letter-spacing: 2px;
+}
+
+/* ===========================
+   INPUT
+=========================== */
+
+.input-bar {
+
+  width: min(650px, 95vw);
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 12px;
+
+  padding: 12px 18px;
+
+  border-radius: 40px;
+
+  background: #35711f;
+
+  box-shadow: 0 3px 12px rgba(0,0,0,.2);
+}
+
+.chat-input {
+
+  position: fixed;
+
+  bottom: 20px;
+
+  left: 50%;
+
+  transform: translateX(-50%);
+
+  z-index: 50;
+}
+
+.input-bar input {
+
+  flex: 1;
+
+  border: none;
+
+  outline: none;
+
+  background: transparent;
+
+  color: white;
+
+  font-size: 20px;
+}
+
+.input-bar input::placeholder {
+
+  color: rgba(255,255,255,.8);
+}
+
+.mic-btn,
+.send-btn {
+
+  background: transparent;
+
+  border: none;
+
+  color: white;
+
+  cursor: pointer;
+
+  font-size: 28px;
+}
+
+/* ===========================
+   ANIMAÇÃO
+=========================== */
+
+@keyframes aparecer {
+
+  from {
+
+    opacity: 0;
+
+    transform: translateY(12px);
+
+  }
+
+  to {
+
+    opacity: 1;
+
+    transform: translateY(0);
+
+  }
+
+}
+
+/* ===========================
+   TABLET
+=========================== */
+
+@media (max-width:900px){
+
+.bot-message,
+.user-message{
+
+max-width:85%;
+
+font-size:18px;
+
+}
+
+.logo-small{
+
+width:120px;
+
+}
+
+}
+
+/* ===========================
+   CELULAR
+=========================== */
+
+@media (max-width:600px){
+
+.opening-screen{
+
+padding:20px;
+
+}
+
+.logo-large{
+
+width:220px;
+
+}
+
+.logo-small{
+
+width:90px;
+
+}
+
+.messages{
+
+padding:10px 10px 110px;
+
+}
+
+.bot-message,
+.user-message{
+
+max-width:92%;
+
+font-size:16px;
+
+padding:14px 16px;
+
+}
+
+.audio-message{
+
+max-width:92%;
+
+padding:12px 15px;
+
+}
+
+.input-bar{
+
+width:95vw;
+
+padding:10px 15px;
+
+}
+
+.input-bar input{
+
+font-size:16px;
+
+}
+
+.mic-btn,
+.send-btn{
+
+font-size:24px;
+
+}
+
+}
