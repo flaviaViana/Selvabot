@@ -1,6 +1,7 @@
 # SelvaBot
 
-SelvaBot é um chatbot interativo para atendimento de clínicas veterinárias, desenvolvido para ajudar no agendamento de consultas, informações sobre vacinas, banho e tosa, emergências e dúvidas básicas veterinárias. O bot responde com simpatia e objetividade, alertando sobre a importância de atendimento presencial em casos de emergência.
+SelvaBot é um chatbot interativo para atendimento de clínicas veterinárias, desenvolvido para conclusão do curso de Inteligências artificias generativas aplicada a programação- ChatGPT.
+O chat tem cocmo objetivo ajudar no agendamento de consultas, informações sobre vacinas, banho e tosa, emergências e dúvidas básicas veterinárias. O bot responde com simpatia e objetividade, alertando sobre a importância de atendimento presencial em casos de emergência.
 
 ---
 
