@@ -9,8 +9,9 @@ const recordBtn = document.getElementById('recordBtn');
 const homeRecordBtn = document.getElementById('homeRecordBtn');
 
 let CONFIG = null;
-
 let historico = [];
+
+let speechConfig, recognizer, synthesizer;
 
 async function carregarConfiguracao() {
   const resposta = await fetch('keys.json');
@@ -27,6 +28,19 @@ async function carregarConfiguracao() {
       content: CONFIG.bot.systemPrompt
     }
   ];
+
+  speechConfig = SpeechSDK.SpeechConfig.fromSubscription(
+    CONFIG.speech.subscriptionKey1,
+    CONFIG.speech.region
+  );
+  speechConfig.speechSynthesisVoiceName = CONFIG.speech.voiceName;
+  speechConfig.speechRecognitionLanguage = 'pt-BR'; // Definido para português do Brasil
+
+  const audioConfigMic = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
+  const audioConfigSpeaker = SpeechSDK.AudioConfig.fromDefaultSpeakerOutput();
+
+  recognizer = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfigMic);
+  synthesizer = new SpeechSDK.SpeechSynthesizer(speechConfig, audioConfigSpeaker);
 }
 
 carregarConfiguracao().catch((erro) => {
@@ -55,10 +69,26 @@ function adicionarMensagemUsuario(texto) {
 function adicionarMensagemBot(texto) {
   const div = document.createElement('div');
   div.className = 'bot-message';
-  div.textContent = texto;
+
+  const spanTexto = document.createElement('span');
+  spanTexto.textContent = texto;
+
+  const btnOuvir = document.createElement('button');
+  btnOuvir.type = 'button';
+  btnOuvir.className = 'play-btn';
+  btnOuvir.title = 'Ouvir mensagem';
+  btnOuvir.textContent = '🔊';
+  btnOuvir.style.marginLeft = '8px';
+
+  btnOuvir.addEventListener('click', () => {
+    falarTextoAzure(texto);
+  });
+
+  div.appendChild(spanTexto);
+  div.appendChild(btnOuvir);
+
   messages.appendChild(div);
   rolarFim();
-  falarTexto(texto);
 }
 
 function adicionarDigitando() {
@@ -80,7 +110,7 @@ function adicionarAudioUsuario(texto) {
   `;
 
   audio.querySelector('.play-btn').addEventListener('click', () => {
-    falarTexto(texto);
+    falarTextoAzure(texto);
   });
 
   messages.appendChild(audio);
@@ -200,48 +230,38 @@ Você pode escolher:
 }
 
 function iniciarReconhecimento(campoDestino) {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognizer.recognizeOnceAsync(result => {
+    if (result.reason === SpeechSDK.ResultReason.RecognizedSpeech) {
+      const texto = result.text;
+      campoDestino.value = texto;
 
-  if (!SpeechRecognition) {
-    alert('Seu navegador não suporta reconhecimento de voz. Use Chrome ou Edge.');
-    return;
-  }
-
-  const recognition = new SpeechRecognition();
-  recognition.lang = 'pt-BR';
-  recognition.interimResults = false;
-  recognition.maxAlternatives = 1;
-
-  recognition.start();
-
-  recognition.onresult = (event) => {
-    const texto = event.results[0][0].transcript;
-    campoDestino.value = texto;
-
-    if (campoDestino === chatInput) {
-      enviarMensagem(texto, true);
-      campoDestino.value = '';
+      if (campoDestino === chatInput) {
+        enviarMensagem(texto, true);
+        campoDestino.value = '';
+      } else {
+        abrirChat(texto);
+        campoDestino.value = '';
+      }
     } else {
-      abrirChat(texto);
-      campoDestino.value = '';
+      alert('Não foi possível capturar o áudio. Tente novamente.');
     }
-  };
-
-  recognition.onerror = () => {
-    alert('Não foi possível capturar o áudio. Tente novamente.');
-  };
+  });
 }
 
-function falarTexto(texto) {
-  if (!('speechSynthesis' in window)) return;
-
-  window.speechSynthesis.cancel();
-
-  const fala = new SpeechSynthesisUtterance(texto);
-  fala.lang = 'pt-BR';
-  fala.rate = 1;
-
-  window.speechSynthesis.speak(fala);
+function falarTextoAzure(texto) {
+  synthesizer.speakTextAsync(
+    texto,
+    result => {
+      if (result.reason === SpeechSDK.ResultReason.SynthesizingAudioCompleted) {
+        console.log('Fala sintetizada.');
+      } else {
+        console.error('Erro na síntese:', result.errorDetails);
+      }
+    },
+    erro => {
+      console.error('Erro na síntese:', erro);
+    }
+  );
 }
 
 homeForm.addEventListener('submit', (event) => {
