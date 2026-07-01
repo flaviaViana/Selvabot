@@ -10,9 +10,6 @@ const homeRecordBtn = document.getElementById('homeRecordBtn');
 
 let CONFIG = null;
 let historico = [];
-
-let mediaRecorder = null;
-let audioChunks = [];
 let gravando = false;
 
 async function carregarConfiguracao() {
@@ -75,7 +72,6 @@ function adicionarMensagemBot(texto) {
 
   div.appendChild(spanTexto);
   div.appendChild(btnOuvir);
-
   messages.appendChild(div);
   rolarFim();
 }
@@ -226,99 +222,188 @@ async function iniciarReconhecimento(campoDestino) {
 
   if (gravando) return;
 
+  gravando = true;
+
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    campoDestino.placeholder = 'Gravando... fale agora';
 
-    let mimeType = '';
+    const wavBlob = await gravarAudioWav(
+      CONFIG.speech.recordingTimeMs || 5000
+    );
 
-    if (MediaRecorder.isTypeSupported('audio/ogg; codecs=opus')) {
-      mimeType = 'audio/ogg; codecs=opus';
-    } else if (MediaRecorder.isTypeSupported('audio/webm; codecs=opus')) {
-      mimeType = 'audio/webm; codecs=opus';
-    } else {
-      alert('Seu navegador não suporta gravação de áudio compatível.');
+    campoDestino.placeholder = '';
+
+    const texto = await transcreverAudioAzureREST(wavBlob);
+
+    if (!texto) {
+      alert('Não foi possível reconhecer o áudio.');
       return;
     }
 
-    audioChunks = [];
-    mediaRecorder = new MediaRecorder(stream, { mimeType });
+    campoDestino.value = texto;
 
-    gravando = true;
-    campoDestino.placeholder = 'Gravando... fale agora';
-
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        audioChunks.push(event.data);
-      }
-    };
-
-    mediaRecorder.onstop = async () => {
-      gravando = false;
-      campoDestino.placeholder = '';
-
-      stream.getTracks().forEach(track => track.stop());
-
-      const audioBlob = new Blob(audioChunks, { type: mimeType });
-
-      try {
-        const texto = await transcreverAudioAzureREST(audioBlob, mimeType);
-
-        if (!texto) {
-          alert('Não foi possível reconhecer o áudio.');
-          return;
-        }
-
-        campoDestino.value = texto;
-
-        if (campoDestino === chatInput) {
-          enviarMensagem(texto, true);
-          campoDestino.value = '';
-        } else {
-          abrirChat(texto);
-          campoDestino.value = '';
-        }
-      } catch (erro) {
-        console.error(erro);
-        alert('Erro ao transcrever áudio pela API REST do Azure Speech.');
-      }
-    };
-
-    mediaRecorder.start();
-
-    setTimeout(() => {
-      if (mediaRecorder && mediaRecorder.state === 'recording') {
-        mediaRecorder.stop();
-      }
-    }, CONFIG.speech.recordingTimeMs || 5000);
+    if (campoDestino === chatInput) {
+      enviarMensagem(texto, true);
+      campoDestino.value = '';
+    } else {
+      abrirChat(texto);
+      campoDestino.value = '';
+    }
 
   } catch (erro) {
     console.error(erro);
-    alert('Permita o acesso ao microfone para usar o áudio.');
+    alert('Erro ao gravar ou transcrever áudio.');
+  } finally {
+    gravando = false;
+    campoDestino.placeholder = '';
   }
 }
 
-async function transcreverAudioAzureREST(audioBlob, mimeType) {
+async function gravarAudioWav(tempoMs) {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+  const audioContext = new AudioContext();
+  const source = audioContext.createMediaStreamSource(stream);
+
+  const processor = audioContext.createScriptProcessor(4096, 1, 1);
+
+  const audioData = [];
+
+  processor.onaudioprocess = (event) => {
+    const canal = event.inputBuffer.getChannelData(0);
+    audioData.push(new Float32Array(canal));
+  };
+
+  source.connect(processor);
+  processor.connect(audioContext.destination);
+
+  await esperar(tempoMs);
+
+  processor.disconnect();
+  source.disconnect();
+
+  stream.getTracks().forEach(track => track.stop());
+
+  const sampleRateOriginal = audioContext.sampleRate;
+
+  await audioContext.close();
+
+  const audioFloat32 = juntarBuffers(audioData);
+  const audio16k = converterSampleRate(audioFloat32, sampleRateOriginal, 16000);
+
+  return criarWavBlob(audio16k, 16000);
+}
+
+function esperar(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function juntarBuffers(buffers) {
+  let tamanhoTotal = 0;
+
+  buffers.forEach(buffer => {
+    tamanhoTotal += buffer.length;
+  });
+
+  const resultado = new Float32Array(tamanhoTotal);
+
+  let offset = 0;
+
+  buffers.forEach(buffer => {
+    resultado.set(buffer, offset);
+    offset += buffer.length;
+  });
+
+  return resultado;
+}
+
+function converterSampleRate(buffer, sampleRateOriginal, sampleRateDestino) {
+  if (sampleRateOriginal === sampleRateDestino) {
+    return buffer;
+  }
+
+  const proporcao = sampleRateOriginal / sampleRateDestino;
+  const novoTamanho = Math.round(buffer.length / proporcao);
+  const resultado = new Float32Array(novoTamanho);
+
+  let offsetResultado = 0;
+  let offsetBuffer = 0;
+
+  while (offsetResultado < resultado.length) {
+    const proximoOffsetBuffer = Math.round((offsetResultado + 1) * proporcao);
+
+    let soma = 0;
+    let contador = 0;
+
+    for (let i = offsetBuffer; i < proximoOffsetBuffer && i < buffer.length; i++) {
+      soma += buffer[i];
+      contador++;
+    }
+
+    resultado[offsetResultado] = soma / contador;
+
+    offsetResultado++;
+    offsetBuffer = proximoOffsetBuffer;
+  }
+
+  return resultado;
+}
+
+function criarWavBlob(samples, sampleRate) {
+  const bytesPorSample = 2;
+  const quantidadeCanais = 1;
+  const tamanhoBuffer = 44 + samples.length * bytesPorSample;
+
+  const arrayBuffer = new ArrayBuffer(tamanhoBuffer);
+  const view = new DataView(arrayBuffer);
+
+  escreverTexto(view, 0, 'RIFF');
+  view.setUint32(4, 36 + samples.length * bytesPorSample, true);
+  escreverTexto(view, 8, 'WAVE');
+
+  escreverTexto(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, quantidadeCanais, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * quantidadeCanais * bytesPorSample, true);
+  view.setUint16(32, quantidadeCanais * bytesPorSample, true);
+  view.setUint16(34, 16, true);
+
+  escreverTexto(view, 36, 'data');
+  view.setUint32(40, samples.length * bytesPorSample, true);
+
+  let offset = 44;
+
+  for (let i = 0; i < samples.length; i++) {
+    let sample = Math.max(-1, Math.min(1, samples[i]));
+    sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+    view.setInt16(offset, sample, true);
+    offset += 2;
+  }
+
+  return new Blob([view], { type: 'audio/wav' });
+}
+
+function escreverTexto(view, offset, texto) {
+  for (let i = 0; i < texto.length; i++) {
+    view.setUint8(offset + i, texto.charCodeAt(i));
+  }
+}
+
+async function transcreverAudioAzureREST(audioBlob) {
   const region = CONFIG.speech.region;
   const key = CONFIG.speech.subscriptionKey1;
   const language = CONFIG.speech.recognitionLanguage || 'pt-BR';
 
-  const endpoint = `https://${region}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=${language}`;
-
-  let contentType = mimeType;
-
-  if (mimeType.includes('ogg')) {
-    contentType = 'audio/ogg; codecs=opus';
-  }
-
-  if (mimeType.includes('webm')) {
-    contentType = 'audio/webm; codecs=opus';
-  }
+  const endpoint =
+    `https://${region}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=${language}`;
 
   const resposta = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Ocp-Apim-Subscription-Key': key,
-      'Content-Type': contentType,
+      'Content-Type': 'audio/wav; codecs=audio/pcm; samplerate=16000',
       'Accept': 'application/json'
     },
     body: audioBlob
@@ -330,7 +415,7 @@ async function transcreverAudioAzureREST(audioBlob, mimeType) {
 
   const dados = await resposta.json();
 
-  return dados.DisplayText || dados.NBest?.[0]?.Display || '';
+  return dados.DisplayText || '';
 }
 
 async function falarTextoAzureREST(texto) {
@@ -377,6 +462,7 @@ async function falarTextoAzureREST(texto) {
     audio.onended = () => {
       URL.revokeObjectURL(audioUrl);
     };
+
   } catch (erro) {
     console.error(erro);
     alert('Erro ao gerar fala pela API REST do Azure Speech.');
