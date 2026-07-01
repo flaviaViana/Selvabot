@@ -11,7 +11,9 @@ const homeRecordBtn = document.getElementById('homeRecordBtn');
 let CONFIG = null;
 let historico = [];
 
-let speechConfig, recognizer, synthesizer;
+let mediaRecorder = null;
+let audioChunks = [];
+let gravando = false;
 
 async function carregarConfiguracao() {
   const resposta = await fetch('keys.json');
@@ -28,19 +30,6 @@ async function carregarConfiguracao() {
       content: CONFIG.bot.systemPrompt
     }
   ];
-
-  speechConfig = SpeechSDK.SpeechConfig.fromSubscription(
-    CONFIG.speech.subscriptionKey1,
-    CONFIG.speech.region
-  );
-  speechConfig.speechSynthesisVoiceName = CONFIG.speech.voiceName;
-  speechConfig.speechRecognitionLanguage = 'pt-BR'; // Definido para português do Brasil
-
-  const audioConfigMic = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
-  const audioConfigSpeaker = SpeechSDK.AudioConfig.fromDefaultSpeakerOutput();
-
-  recognizer = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfigMic);
-  synthesizer = new SpeechSDK.SpeechSynthesizer(speechConfig, audioConfigSpeaker);
 }
 
 carregarConfiguracao().catch((erro) => {
@@ -81,7 +70,7 @@ function adicionarMensagemBot(texto) {
   btnOuvir.style.marginLeft = '8px';
 
   btnOuvir.addEventListener('click', () => {
-    falarTextoAzure(texto);
+    falarTextoAzureREST(texto);
   });
 
   div.appendChild(spanTexto);
@@ -110,7 +99,7 @@ function adicionarAudioUsuario(texto) {
   `;
 
   audio.querySelector('.play-btn').addEventListener('click', () => {
-    falarTextoAzure(texto);
+    falarTextoAzureREST(texto);
   });
 
   messages.appendChild(audio);
@@ -188,7 +177,7 @@ async function chamarAzureOpenAI() {
   });
 
   if (!resposta.ok) {
-    throw new Error('Erro Azure: ' + await resposta.text());
+    throw new Error('Erro Azure OpenAI: ' + await resposta.text());
   }
 
   const dados = await resposta.json();
@@ -229,39 +218,178 @@ Você pode escolher:
 5 Falar com um atendente.`;
 }
 
-function iniciarReconhecimento(campoDestino) {
-  recognizer.recognizeOnceAsync(result => {
-    if (result.reason === SpeechSDK.ResultReason.RecognizedSpeech) {
-      const texto = result.text;
-      campoDestino.value = texto;
+async function iniciarReconhecimento(campoDestino) {
+  if (!CONFIG) {
+    alert('Configuração ainda não carregada.');
+    return;
+  }
 
-      if (campoDestino === chatInput) {
-        enviarMensagem(texto, true);
-        campoDestino.value = '';
-      } else {
-        abrirChat(texto);
-        campoDestino.value = '';
-      }
+  if (gravando) return;
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    let mimeType = '';
+
+    if (MediaRecorder.isTypeSupported('audio/ogg; codecs=opus')) {
+      mimeType = 'audio/ogg; codecs=opus';
+    } else if (MediaRecorder.isTypeSupported('audio/webm; codecs=opus')) {
+      mimeType = 'audio/webm; codecs=opus';
     } else {
-      alert('Não foi possível capturar o áudio. Tente novamente.');
+      alert('Seu navegador não suporta gravação de áudio compatível.');
+      return;
     }
-  });
+
+    audioChunks = [];
+    mediaRecorder = new MediaRecorder(stream, { mimeType });
+
+    gravando = true;
+    campoDestino.placeholder = 'Gravando... fale agora';
+
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        audioChunks.push(event.data);
+      }
+    };
+
+    mediaRecorder.onstop = async () => {
+      gravando = false;
+      campoDestino.placeholder = '';
+
+      stream.getTracks().forEach(track => track.stop());
+
+      const audioBlob = new Blob(audioChunks, { type: mimeType });
+
+      try {
+        const texto = await transcreverAudioAzureREST(audioBlob, mimeType);
+
+        if (!texto) {
+          alert('Não foi possível reconhecer o áudio.');
+          return;
+        }
+
+        campoDestino.value = texto;
+
+        if (campoDestino === chatInput) {
+          enviarMensagem(texto, true);
+          campoDestino.value = '';
+        } else {
+          abrirChat(texto);
+          campoDestino.value = '';
+        }
+      } catch (erro) {
+        console.error(erro);
+        alert('Erro ao transcrever áudio pela API REST do Azure Speech.');
+      }
+    };
+
+    mediaRecorder.start();
+
+    setTimeout(() => {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+      }
+    }, CONFIG.speech.recordingTimeMs || 5000);
+
+  } catch (erro) {
+    console.error(erro);
+    alert('Permita o acesso ao microfone para usar o áudio.');
+  }
 }
 
-function falarTextoAzure(texto) {
-  synthesizer.speakTextAsync(
-    texto,
-    result => {
-      if (result.reason === SpeechSDK.ResultReason.SynthesizingAudioCompleted) {
-        console.log('Fala sintetizada.');
-      } else {
-        console.error('Erro na síntese:', result.errorDetails);
-      }
+async function transcreverAudioAzureREST(audioBlob, mimeType) {
+  const region = CONFIG.speech.region;
+  const key = CONFIG.speech.subscriptionKey1;
+  const language = CONFIG.speech.recognitionLanguage || 'pt-BR';
+
+  const endpoint = `https://${region}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=${language}`;
+
+  let contentType = mimeType;
+
+  if (mimeType.includes('ogg')) {
+    contentType = 'audio/ogg; codecs=opus';
+  }
+
+  if (mimeType.includes('webm')) {
+    contentType = 'audio/webm; codecs=opus';
+  }
+
+  const resposta = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Ocp-Apim-Subscription-Key': key,
+      'Content-Type': contentType,
+      'Accept': 'application/json'
     },
-    erro => {
-      console.error('Erro na síntese:', erro);
+    body: audioBlob
+  });
+
+  if (!resposta.ok) {
+    throw new Error('Erro Speech to Text REST: ' + await resposta.text());
+  }
+
+  const dados = await resposta.json();
+
+  return dados.DisplayText || dados.NBest?.[0]?.Display || '';
+}
+
+async function falarTextoAzureREST(texto) {
+  if (!CONFIG) {
+    alert('Configuração ainda não carregada.');
+    return;
+  }
+
+  const region = CONFIG.speech.region;
+  const key = CONFIG.speech.subscriptionKey1;
+  const voiceName = CONFIG.speech.voiceName || 'pt-BR-FranciscaNeural';
+
+  const endpoint = `https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`;
+
+  const ssml = `
+    <speak version="1.0" xml:lang="pt-BR">
+      <voice xml:lang="pt-BR" name="${voiceName}">
+        ${escaparXML(texto)}
+      </voice>
+    </speak>
+  `;
+
+  try {
+    const resposta = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Ocp-Apim-Subscription-Key': key,
+        'Content-Type': 'application/ssml+xml',
+        'X-Microsoft-OutputFormat': 'audio-16khz-32kbitrate-mono-mp3'
+      },
+      body: ssml
+    });
+
+    if (!resposta.ok) {
+      throw new Error('Erro Text to Speech REST: ' + await resposta.text());
     }
-  );
+
+    const audioBlob = await resposta.blob();
+    const audioUrl = URL.createObjectURL(audioBlob);
+    const audio = new Audio(audioUrl);
+
+    audio.play();
+
+    audio.onended = () => {
+      URL.revokeObjectURL(audioUrl);
+    };
+  } catch (erro) {
+    console.error(erro);
+    alert('Erro ao gerar fala pela API REST do Azure Speech.');
+  }
+}
+
+function escaparXML(texto) {
+  return texto
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;');
 }
 
 homeForm.addEventListener('submit', (event) => {
