@@ -17,85 +17,40 @@ O chat tem como objetivo ajudar no agendamento de consultas, informações sobre
 
 ---
 
-## Estrutura do projeto
+## Como Executar
 
-### `index.html`
-
-Arquivo principal que contém a estrutura da interface. Divide a aplicação em duas telas:
-
-- Tela inicial, com logo e input de texto com botão para gravação de áudio.
-- Tela de chat, onde aparecem as mensagens trocadas com o bot.
+1. Abra o arquivo `index.html` em um navegador moderno (Chrome ou Edge recomendados).
+2. Digite sua mensagem ou clique no microfone para falar.
+3. O SelvaBot responderá automaticamente, com texto e áudio.
 
 ---
 
-### `keys.json`
+## Configuração (`keys.json`)
 
-Arquivo de configuração contendo:
+Para usar o chatbot, crie um arquivo `keys.json` na raiz do projeto com o seguinte formato:
 
-- Endereço, chave e modelo da API Azure OpenAI.
-- Configurações de requisição (tokens máximos, esforço de raciocínio).
-- Informações do bot, como nome, textos de digitação, respostas fallback e prompt do sistema.
+```json
+{
+  "azure": {
+    "endpoint": "https://SEU_ENDPOINT.azure.com/openai/v1/chat/completions",
+    "apiKey": "SUA_CHAVE_API_AZURE",
+    "model": "NOME_DO_MODELO"
+  },
+  "request": {
+    "maxCompletionTokens": 4096,
+    "reasoningEffort": "medium"
+  },
+  "bot": {
+    "name": "SelvaBot",
+    "typingText": "SelvaBot está digitando...",
+    "fallbackText": "Não encontrei uma resposta.",
+    "systemPrompt": "Você é o SelvaBot, uma IA para atendimento veterinário em português do Brasil."
+  }
+}
 
----
+```
 
-### `script.js`
+# Licença
 
-Lógica principal da aplicação, responsável por:
+Este código foi criado para conclusão de curso. Para utilizá-lo, é necessário inserir suas próprias credenciais no arquivo `keys.json`.
 
-- Carregar configuração do `keys.json`.
-- Gerenciar troca entre tela inicial e chat.
-- Enviar mensagens e receber respostas da API Azure OpenAI.
-- Reconhecer voz do usuário para entrada de áudio.
-- Sintetizar voz da resposta do chatbot.
-- Exibir mensagens do usuário e do bot com estilos distintos.
-- Tratar erros e responder localmente quando necessário.
-
----
-
-### `style.css`
-
-Estilos para:
-
-- Layout responsivo para desktop, tablet e celular.
-- Estilização de balões de chat para usuário e bot.
-- Barra de input com botões de gravação e envio.
-- Animações suaves para mensagens.
-- Personalização visual usando tons de verde para o tema veterinário.
-
----
-
-## Como usar
-
-1. Abra o `index.html` em um navegador moderno (recomenda-se Chrome ou Edge para suporte total a voz).
-2. Na tela inicial, digite sua mensagem ou use o botão de áudio para ditar.
-3. A conversa se abrirá na tela de chat, onde você poderá continuar interagindo com o SelvaBot.
-4. O bot responderá via texto e áudio.
-5. Em caso de falha na API, respostas padrões locais serão exibidas para garantir o atendimento.
-
----
-
-## Requisitos
-
-- Navegador com suporte a Web Speech API (reconhecimento e síntese de voz).
-- Conexão com internet para chamadas à API Azure OpenAI.
-- Arquivos `index.html`, `style.css`, `script.js` e `keys.json` disponíveis na mesma pasta.
-
----
-
-## Observações importantes
-
-- O SelvaBot atua como assistente virtual e não substitui o atendimento veterinário presencial.
-- Em emergências, o bot orienta imediatamente a buscar atendimento humano.
-- A chave da API no `keys.json` deve ser protegida para evitar uso indevido.
-
----
-
-## Licença
-
-Este projeto é disponibilizado conforme políticas do desenvolvedor. Ajuste e uso pessoal são livres, mas não compartilhe a chave da API pública para proteger seus custos e segurança.
-
----
-
-## Contato
-
-Para dúvidas ou suporte, entre em contato com o responsável pelo SelvaBot.
